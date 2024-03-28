@@ -140,7 +140,7 @@ fn create_user(connection: &rusqlite::Connection , username: &str, password: &st
         [username, &hash.to_string()],
     ) {
         Ok(_) => true,
-        Err(e) => false,
+        Err(_) => false,
     }
 }
 
@@ -152,7 +152,7 @@ fn change_password(connection: &rusqlite::Connection , username: &str, password:
         [username, &hash.to_string()],
     ) {
         Ok(_) => true,
-        Err(e) => false,
+        Err(_) => false,
     }
 }
 
