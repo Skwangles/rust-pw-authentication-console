@@ -7,7 +7,7 @@ If this were a proper production system the database would of course be less acc
 ## Usage
 Create your own:
  - [forbidden-words.txt](https://www.cs.cmu.edu/~biglou/resources/bad-words.txt) <- looks for substring
- - [commonpasswords.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt) <- looks for the Levenshtein distance between these and passwords 
+ - [commonpasswords.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt) <- looks for the Levenshtein distance between these and passwords, include breached passwords in this file too
  - [forbidden-usernames.txt](https://github.com/shouldbee/reserved-usernames/blob/master/reserved-usernames.txt) <- looks for Levenshtein distance between this and username  
 *Note: The system converts numbers beforehand to closest letters, so do not worry about things like `ro0t`.*
 
