@@ -5,6 +5,11 @@ struct Words {
 }
 
 
+struct Session {
+    username: String,
+    logged_in: bool
+}
+
 /// Read some lines of a file
 #[derive(serde::Serialize, serde::Deserialize)]
 struct MyConfig {
@@ -139,6 +144,19 @@ fn create_user(connection: &rusqlite::Connection , username: &str, password: &st
     }
 }
 
+fn change_password(connection: &rusqlite::Connection , username: &str, password: &str) -> bool {
+    
+    let hash = bcrypt::hash_with_result(password, 4).unwrap();
+    match connection.execute(
+        "UPDATE users SET password_hash = ?2 WHERE username = ?1;",
+        [username, &hash.to_string()],
+    ) {
+        Ok(_) => true,
+        Err(e) => false,
+    }
+}
+
+
 fn check_password(connection: &rusqlite::Connection, username: &str, password: &str) -> bool {
     let row: String = connection.query_row(
         "SELECT password_hash FROM users WHERE username = ?1;",
@@ -166,9 +184,10 @@ fn remove_whitespace(s: &mut String) {
 
 fn main() {
     let mut logged_in = false;
+    let mut session_username = String::new();
     let mut should_exit = false;
     let args: MyConfig = confy::load("pwd",None).unwrap();
-    let connection = rusqlite::Connection::open_in_memory().unwrap();
+    let connection = rusqlite::Connection::open(args.pwddbpath).unwrap();
 
     let bad_words = std::fs::read_to_string(args.swearspath).expect("Failed to read swears file");
     let common_passwords = std::fs::read_to_string(args.commonpasswordpath).expect("Failed to read common passwords file");
@@ -196,10 +215,15 @@ fn main() {
             break;
         }
         if logged_in {
-            logged_in = logged_in_state(&connection, &mut should_exit, &words);
+            logged_in = logged_in_state(&connection, &mut should_exit, &words, &session_username);
+            if !logged_in {
+                session_username = "".to_string();
+            }
         }
         else {
-            logged_in = logged_out_state(&connection, &mut should_exit, &words);
+            let new_session: Session = logged_out_state(&connection, &mut should_exit, &words);
+            logged_in = new_session.logged_in;
+            session_username = new_session.username;
         }
     }
 
@@ -207,7 +231,7 @@ fn main() {
 
 }
 
-fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words) -> bool {
+fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words, session_username: &String) -> bool {
         println!("------------------------------------");
         println!("Please select an option: ");
         println!("1. Change Password");
@@ -239,9 +263,11 @@ fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &W
                         println!("Passwords do not match - Please try again");
                         continue;
                     }
+
+
                     break
                 }
-                // change_password(&connection, &username, &password);
+                change_password(&connection, &session_username, &password);
                 println!("Password changed successfully");
             },
             "2" => {
@@ -259,7 +285,7 @@ fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &W
     true
 }
 
-fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words) -> bool {
+fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words) -> Session {
         println!("------------------------------------");
         println!("Please select an option: ");
         println!("1. Create User");
@@ -279,7 +305,9 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     remove_whitespace(&mut username);
 
                     if username.as_str() == "" {
-                        return false
+                        return Session {
+                            username: "".to_string(),
+                            logged_in: false}
                     }
 
                     if !validate_username_selection(&username, &words) {
@@ -318,11 +346,15 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                 let success = create_user(&connection, &username, &password);
                 if !success {
                     println!("Failed to create user - Username already exists or database error");
-                    return false;
+                    return Session {
+                        username: "".to_string(),
+                        logged_in: false}
                 }
 
                 println!("User created successfully - Welcome new user: {}", username);
-                return true
+                return Session {
+                    username: username,
+                    logged_in: true}
             },
             "2" => {
                 loop {
@@ -332,7 +364,9 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     remove_whitespace(&mut username_buf);
 
                     if username_buf == "" {
-                        return false;
+                        return Session {
+                            username: "".to_string(),
+                            logged_in: false}
                     }
                     
                     println!("Enter password:");
@@ -343,7 +377,9 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     if username_in_db(&connection, &username_buf) && check_password(&connection, &username_buf, &password_buf) {
                         println!("Login successful - Welcome back {}", username_buf);
                         println!("If you see this message, you've logged in, but we ran out of funding to do anything else");
-                        return true
+                        return Session {
+                            username: username_buf.to_string(),
+                            logged_in: true}
                     }
                     else {
                         println!("Login failed - Incorrect username or password");
@@ -352,12 +388,16 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
             },
             "3" => {
                 *exit = true;
-                return false
+                return Session {
+                    username: "".to_string(),
+                    logged_in: false}
             },
             _ => {
                 println!("Invalid selection - Please try again: {}", user_input);
             }
         }
-        false 
+        Session {
+            username: "".to_string(),
+            logged_in: false}
     
 }
