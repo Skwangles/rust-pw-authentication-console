@@ -161,12 +161,15 @@ fn check_password(connection: &rusqlite::Connection, username: &str, password: &
 }
 
 fn username_in_db(connection: &rusqlite::Connection, username: &str) -> bool {
-    let row: String = connection.query_row(
+    let row: Result<String, rusqlite::Error> = connection.query_row(
         "SELECT username FROM users WHERE username = ?1;",
         [username],
         |row| row.get(0)
-    ).unwrap();
-    row == username
+    );
+    match row {
+        Ok(_) => true,
+        Err(_) => false,
+    }
 }
 
 fn remove_whitespace(s: &mut String) {
