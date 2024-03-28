@@ -1,15 +1,3 @@
-use core::num;
-use std::str::FromStr;
-
-use bcrypt::HashParts;
-
-#[derive(Debug)]
-struct Users {
-    id: i32,
-    username: String,
-    password: String,
-} 
-
 struct Words {
     swears: Vec<String>,
     common_passwords: Vec<String>,
@@ -220,7 +208,7 @@ fn main() {
 }
 
 fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words) -> bool {
-
+        println!("------------------------------------");
         println!("Please select an option: ");
         println!("1. Change Password");
         println!("2. Logout");
@@ -272,6 +260,7 @@ fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &W
 }
 
 fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &Words) -> bool {
+        println!("------------------------------------");
         println!("Please select an option: ");
         println!("1. Create User");
         println!("2. Login");
