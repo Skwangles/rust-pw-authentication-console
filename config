@@ -1,4 +1,5 @@
-pwddbpath=./pwd.db
-swearspath=./forbidden-words.txt
-commonpasswordspath=./commonpasswords.txt
-usernamespath=./forbidden-usernames.txt
+pwddbpath="./pwd.db"
+swearspath="./forbidden-words.txt"
+commonpasswordpath="./commonpasswords.txt"
+breachedpasswordpath="./breachedpasswords.txt"
+usernamespath="./forbidden-usernames.txt"
