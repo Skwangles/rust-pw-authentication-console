@@ -343,18 +343,28 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     break
                 }
 
-                let success = create_user(&connection, &username, &password);
-                if !success {
-                    println!("Failed to create user - Username already exists or database error");
+                if username_in_db(&connection, &username) {
+                    println!("Failed to create user - Username already exists");
                     return Session {
                         username: "".to_string(),
-                        logged_in: false}
+                        logged_in: false
+                    }
+                }
+
+                let success = create_user(&connection, &username, &password);
+                if !success {
+                    println!("Failed to create user - Database error");
+                    return Session {
+                        username: "".to_string(),
+                        logged_in: false
+                    }
                 }
 
                 println!("User created successfully - Welcome new user: {}", username);
                 return Session {
                     username: username,
-                    logged_in: true}
+                    logged_in: true
+                }
             },
             "2" => {
                 loop {
