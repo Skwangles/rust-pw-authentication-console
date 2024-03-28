@@ -59,7 +59,7 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         remove_whitespace(&mut username);
         for word in &words.forbidden_usernames {
             
-            if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) <= 1 {
+            if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) <= 2 {
                 println!("Username too similar to a forbidden username");
                 return false;
             }
@@ -149,6 +149,7 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
             }
             last_num = c as u8;
         }
+        last_char = c;
     }
 
     for pwd in &words.common_passwords {
