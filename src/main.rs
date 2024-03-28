@@ -1,9 +1,12 @@
+
 struct Words {
     swears: Vec<String>,
     common_passwords: Vec<String>,
     forbidden_usernames: Vec<String>,
+    breached_passwords: Vec<String>,
 }
 
+const BCRYPT_COST: u32 = 12;
 
 struct Session {
     username: String,
@@ -17,12 +20,14 @@ struct MyConfig {
     swearspath: String,
     commonpasswordpath: String,
     usernamespath: String,
+    breachedpasswordpath: String,
 }
 
 // Default Config
 impl ::std::default::Default for MyConfig {
     fn default() -> Self {
         Self {
+            breachedpasswordpath: "./breachedpasswords.txt".into(),
             swearspath: "./forbidden-words.txt".into(),
             commonpasswordpath: "./commonpasswords.txt".into(),
             pwddbpath: "./pwd.db".into(),
@@ -32,25 +37,20 @@ impl ::std::default::Default for MyConfig {
 }
 
 fn validate_username_selection(uname: &str, words: &Words) -> bool {
-    let mut username = uname.to_string();
+    let username = uname.to_string().to_ascii_lowercase();
     // Check lengths
     if username.len() < 1 {
         println!("Username too short - must be at least 1 character");
         return false;
     }
-    if username.len() > 25 {
-        println!("Username too long - must be at most 25 characters");
-        return false;
-    }
+
 
         // Restrict charset
-    let limited_charset = regex::Regex::new(r"^[a-zA-Z0-9.-_]*$").unwrap();
+    let limited_charset = regex::Regex::new(r"^[a-zA-Z0-9_]*$").unwrap();
     if !limited_charset.is_match(&username){
         println!("Username must be alphanumeric, with dots, dashes and underscores allowed");
         return false;
     }
-
-    username.make_ascii_lowercase();
     
     // Check for forbidden usernames
     for use_i in [true, false] {
@@ -59,14 +59,14 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         remove_whitespace(&mut username);
         for word in &words.forbidden_usernames {
             
-            if  edit_distance::edit_distance(username.as_str(), word) <= 1 {
+            if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) <= 1 {
                 println!("Username too similar to a forbidden username");
                 return false;
             }
         }
 
         for word in &words.swears {
-            if  username.contains(word) {
+            if  username.contains(word.to_ascii_lowercase().as_str()) {
                 println!("Username contains naughty words");
                 return false;
             }
@@ -102,6 +102,9 @@ fn numbers_to_letters(username: String, use_i: bool) -> String {
 }
 
 fn validate_password_selection(password: &str, words: &Words) -> bool {
+    let mut password = password.to_string();
+    remove_whitespace(&mut password);
+
     if password.len() < 8 {
         println!("Password too short - must be at least 8 characters");
         return false;
@@ -113,14 +116,54 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
     }
 
     if !password.is_ascii() {
-        println!("Password must be ASCII");
+        println!("Password must use an ascii charset");
         return false;
+    }
+    let mut last_char = ' ';
+    let mut char_in_sequence = 0;
+    let mut last_num = 0;
+    let mut num_in_sequence = 0;
+    for c in password.chars() {
+        if c == last_char {
+            char_in_sequence += 1;
+        }
+        else {
+            char_in_sequence = 0;
+        }
+
+        if char_in_sequence >= 3 {
+            println!("Password must not have 3+ characters in sequence");
+            return false;
+        }
+
+        if c.is_numeric() {
+            if c as u8 == last_num + 1 {
+                num_in_sequence += 1;
+            }
+            else {
+                num_in_sequence = 0;
+            }
+            if num_in_sequence >= 3 {
+                println!("Password must not have 3+ numbers in sequence");
+                return false;
+            }
+            last_num = c as u8;
+        }
     }
 
     for pwd in &words.common_passwords {
+        let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
         //Lictenshine distance of 3 helps us know if they've just added an ! to the end of a common password, or something similar
-        if edit_distance::edit_distance(pwd, password) < 3 {
+        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 3 {
             println!("Password is too close to a common password - please choose a different password");
+            return false;
+        }
+    }
+
+    for pwd in &words.breached_passwords {
+        let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
+        if pwd == password {
+            println!("Password is too close to a breached password - please choose a different password");
             return false;
         }
     }
@@ -133,11 +176,12 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
 }
 
 fn create_user(connection: &rusqlite::Connection , username: &str, password: &str) -> bool {
+    let username = username.to_string().to_ascii_lowercase();
     
-    let hash = bcrypt::hash_with_result(password, 4).unwrap();
+    let hash = bcrypt::hash_with_result(password, BCRYPT_COST).unwrap();
     match connection.execute(
         "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
-        [username, &hash.to_string()],
+        [username, hash.to_string()],
     ) {
         Ok(_) => true,
         Err(_) => false,
@@ -145,11 +189,12 @@ fn create_user(connection: &rusqlite::Connection , username: &str, password: &st
 }
 
 fn change_password(connection: &rusqlite::Connection , username: &str, password: &str) -> bool {
+    let username = username.to_string().to_ascii_lowercase();
     
-    let hash = bcrypt::hash_with_result(password, 4).unwrap();
+    let hash = bcrypt::hash_with_result(password, BCRYPT_COST).unwrap();
     match connection.execute(
         "UPDATE users SET password_hash = ?2 WHERE username = ?1;",
-        [username, &hash.to_string()],
+        [username, hash.to_string()],
     ) {
         Ok(_) => true,
         Err(_) => false,
@@ -158,6 +203,8 @@ fn change_password(connection: &rusqlite::Connection , username: &str, password:
 
 
 fn check_password(connection: &rusqlite::Connection, username: &str, password: &str) -> bool {
+    let username = username.to_string().to_ascii_lowercase();
+
     let row: String = connection.query_row(
         "SELECT password_hash FROM users WHERE username = ?1;",
         [username],
@@ -167,6 +214,8 @@ fn check_password(connection: &rusqlite::Connection, username: &str, password: &
 }
 
 fn username_in_db(connection: &rusqlite::Connection, username: &str) -> bool {
+    let username = username.to_string().to_ascii_lowercase();
+
     let row: Result<String, rusqlite::Error> = connection.query_row(
         "SELECT username FROM users WHERE username = ?1;",
         [username],
@@ -186,17 +235,18 @@ fn main() {
     let mut logged_in = false;
     let mut session_username = String::new();
     let mut should_exit = false;
-    let args: MyConfig = confy::load("pwd",None).unwrap();
+    let args: MyConfig = confy::load_path("./config").unwrap();
     let connection = rusqlite::Connection::open(args.pwddbpath).unwrap();
 
     let bad_words = std::fs::read_to_string(args.swearspath).expect("Failed to read swears file");
     let common_passwords = std::fs::read_to_string(args.commonpasswordpath).expect("Failed to read common passwords file");
     let forbidden_usernames = std::fs::read_to_string(args.usernamespath).expect("Failed to read forbidden usernames file");
-
+    let breached_passwords = std::fs::read_to_string(args.breachedpasswordpath).expect("Failed to read breached passwords file");
     let words = Words {
         swears: bad_words.lines().map(|s| s.to_string()).collect(),
         common_passwords: common_passwords.lines().map(|s| s.to_string()).collect(),
         forbidden_usernames: forbidden_usernames.lines().map(|s| s.to_string()).collect(),
+        breached_passwords: breached_passwords.lines().map(|s| s.to_string()).collect(),
     };
 
     connection.execute(
@@ -303,6 +353,7 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     std::io::stdin().read_line(&mut username).unwrap(); 
 
                     remove_whitespace(&mut username);
+                    username = username.to_ascii_lowercase();
 
                     if username.as_str() == "" {
                         return Session {
@@ -372,6 +423,7 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     let mut username_buf = String::new();
                     std::io::stdin().read_line(&mut username_buf).unwrap();
                     remove_whitespace(&mut username_buf);
+                    username_buf = username_buf.to_ascii_lowercase();
 
                     if username_buf == "" {
                         return Session {
