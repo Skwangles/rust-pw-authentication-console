@@ -1,0 +1,4 @@
+pwddbpath=./pwd.db
+swearspath=./forbidden-words.txt
+commonpasswordspath=./commonpasswords.txt
+usernamespath=./forbidden-usernames.txt
