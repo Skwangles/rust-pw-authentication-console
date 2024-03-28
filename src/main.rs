@@ -345,6 +345,7 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
         let mut user_input = String::new();
         std::io::stdin().read_line(&mut user_input).unwrap();
         remove_whitespace(&mut user_input);
+
         match user_input.as_str() {
             "1" => {
                 let mut username;
@@ -367,6 +368,11 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                         continue;
                     }
 
+
+                    if username_in_db(&connection, &username) {
+                        println!("Username already exists");
+                        continue;
+                    }
                     break;
                 }
 
@@ -395,14 +401,7 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                     break
                 }
 
-                if username_in_db(&connection, &username) {
-                    println!("Failed to create user - Username already exists");
-                    return Session {
-                        username: "".to_string(),
-                        logged_in: false
-                    }
-                }
-
+            
                 let success = create_user(&connection, &username, &password);
                 if !success {
                     println!("Failed to create user - Database error");
@@ -419,7 +418,16 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                 }
             },
             "2" => {
+                let mut failed_attempts = 0;
                 loop {
+                    if failed_attempts >= 5 {
+                        println!("Too many failed login attempts - Exiting");
+                        *exit = true;
+                        return Session {
+                            username: "".to_string(),
+                            logged_in: false}
+                    }
+
                     println!("Enter username (or empty to exit):");
                     let mut username_buf = String::new();
                     std::io::stdin().read_line(&mut username_buf).unwrap();
@@ -445,6 +453,7 @@ fn logged_out_state(connection: &rusqlite::Connection, exit: &mut bool, words: &
                             logged_in: true}
                     }
                     else {
+                        failed_attempts += 1;
                         println!("Login failed - Incorrect username or password");
                     }
                 }
