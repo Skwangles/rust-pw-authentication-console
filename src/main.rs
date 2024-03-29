@@ -44,6 +44,10 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         return false;
     }
 
+    if username.len() > 30 {
+        println!("Username too long - must be at most 30 characters");
+        return false;
+    }
 
         // Restrict charset
     let limited_charset = regex::Regex::new(r"^[a-zA-Z0-9_]*$").unwrap();
@@ -60,14 +64,14 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         for word in &words.forbidden_usernames {
             
             if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) <= 2 {
-                println!("Username too similar to a forbidden username");
+                println!("Username is invalid - contains a forbidden word/username");
                 return false;
             }
         }
 
         for word in &words.swears {
             if  username.contains(word.to_ascii_lowercase().as_str()) {
-                println!("Username contains naughty words");
+                println!("Username is invalid - contains a forbidden word/username");
                 return false;
             }
         }
@@ -101,6 +105,25 @@ fn numbers_to_letters(username: String, use_i: bool) -> String {
     username
 }
 
+fn is_ascii_or_unicode(s: &str) -> bool {
+    for c in s.chars() {
+        if c.is_ascii(){
+            if c.is_ascii_graphic() || c == ' ' {
+                // only allow printable ascii characters and spaces
+                continue;
+            }
+            else {
+                return false;
+            }
+        }
+        else {
+            // allow unicode characters
+            continue;
+        }
+    }
+    true
+}
+
 fn validate_password_selection(password: &str, words: &Words) -> bool {
     let mut password = password.to_string();
     remove_whitespace(&mut password);
@@ -110,15 +133,16 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
         return false;
     }
 
-    if password.len() > 64 {
-        println!("Password too long - must be at most 64 characters");
+    if password.len() > 256 {
+        println!("Password too long - must be at most 256 characters");
         return false;
     }
 
-    if !password.is_ascii() {
-        println!("Password must use an ascii charset");
+    if !is_ascii_or_unicode(password.as_str())  {
+        println!("Password includes invalid character(s)");
         return false;
     }
+    
     let mut last_char = ' ';
     let mut char_in_sequence = 0;
     let mut last_num = 0;
@@ -131,8 +155,8 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
             char_in_sequence = 0;
         }
 
-        if char_in_sequence >= 3 {
-            println!("Password must not have 3+ characters in sequence");
+        if char_in_sequence > 3 {
+            println!("Password must not use repeated characters, or numbers in sequence");
             return false;
         }
 
@@ -144,7 +168,7 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
                 num_in_sequence = 0;
             }
             if num_in_sequence >= 3 {
-                println!("Password must not have 3+ numbers in sequence");
+                println!("Password must not use repeated characters, or numbers in sequence");
                 return false;
             }
             last_num = c as u8;
@@ -154,24 +178,20 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
 
     for pwd in &words.common_passwords {
         let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
-        //Lictenshine distance of 3 helps us know if they've just added an ! to the end of a common password, or something similar
+        //Lictenshine distance of <3 helps us know if they've just added an ! to the end of a common password, or something similar
         if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 3 {
-            println!("Password is too close to a common password - please choose a different password");
+            println!("Password is too close to a weak/breached password - please choose a different password");
             return false;
         }
     }
 
     for pwd in &words.breached_passwords {
         let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
-        if pwd == password {
-            println!("Password is too close to a breached password - please choose a different password");
+        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 3 {
+            println!("Password is too close to a weak/breached password - please choose a different password");
             return false;
         }
     }
-
-    //Restrict charset
-
-    //Check for common passwords
 
     return true;
 }
@@ -201,7 +221,6 @@ fn change_password(connection: &rusqlite::Connection , username: &str, password:
         Err(_) => false,
     }
 }
-
 
 fn check_password(connection: &rusqlite::Connection, username: &str, password: &str) -> bool {
     let username = username.to_string().to_ascii_lowercase();
@@ -293,6 +312,7 @@ fn logged_in_state(connection: &rusqlite::Connection, exit: &mut bool, words: &W
         remove_whitespace(&mut user_input);
         match user_input.as_str() {
             "1" => {
+                println!("Passwords must be at least 8 characters long, and must not be too similar to a common password, or a password that has been breached");
                 let mut password;
                 loop {
                     println!("Enter new password:");
