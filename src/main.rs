@@ -63,7 +63,8 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         remove_whitespace(&mut username);
         for word in &words.forbidden_usernames {
             
-            if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) <= 2 {
+            if  edit_distance::edit_distance(username.as_str(), word.to_ascii_lowercase().as_str()) < 2 {
+                println!("{}", word);
                 println!("Username is invalid - contains a forbidden word/username");
                 return false;
             }
@@ -179,7 +180,7 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
     for pwd in &words.common_passwords {
         let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
         //Lictenshine distance of <3 helps us know if they've just added an ! to the end of a common password, or something similar
-        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 3 {
+        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 2 {
             println!("Password is too close to a weak/breached password - please choose a different password");
             return false;
         }
@@ -187,7 +188,7 @@ fn validate_password_selection(password: &str, words: &Words) -> bool {
 
     for pwd in &words.breached_passwords {
         let pwd = pwd.to_string().to_ascii_lowercase().trim().to_string();
-        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 3 {
+        if edit_distance::edit_distance(pwd.as_str(), password.as_str()) < 2 {
             println!("Password is too close to a weak/breached password - please choose a different password");
             return false;
         }
