@@ -52,7 +52,7 @@ fn validate_username_selection(uname: &str, words: &Words) -> bool {
         // Restrict charset
     let limited_charset = regex::Regex::new(r"^[a-zA-Z0-9_]*$").unwrap();
     if !limited_charset.is_match(&username){
-        println!("Username must be alphanumeric, with dots, dashes and underscores allowed");
+        println!("Username must be alphanumeric - underscores are allowed");
         return false;
     }
     
