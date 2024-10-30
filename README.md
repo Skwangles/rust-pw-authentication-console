@@ -1,5 +1,5 @@
 # Rust PW Authentication system
-
+Project built for uni assignment, done in Rust for fun
 Built a simple console application which uses Rusqlite to story usernames and password hashes - with salts.
 If this were a proper production system the database would of course be less accessible
 
